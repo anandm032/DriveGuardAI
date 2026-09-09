@@ -14,10 +14,10 @@ The score never goes below 0, and it is never reset - every call
 reads the vehicle's current score from the database and writes the
 new one back, so it survives across app restarts.
 
-Risk-level classification (LOW/MEDIUM/HIGH) is a separate concern
-built in Phase 5 (scoring/risk_classifier.py). This module preserves
-whatever risk_level is already stored on the vehicle when it updates
-the score - Phase 5 wires proper reclassification in on top of this.
+Risk-level classification (LOW/MEDIUM/HIGH) is handled by
+scoring/risk_classifier.py (Phase 5) and is wired in below: every
+score change - violation or recovery - recomputes and persists the
+vehicle's risk_level via RiskClassifier, so it's never stale.
 
 Drowsiness is intentionally NOT a penalized activity by default (spec
 section 10: it's a safety condition/warning, not automatically an
@@ -70,6 +70,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from database.database import Database, DatabaseError
+from scoring.risk_classifier import RiskClassifier
 from utils.helpers import load_config
 from utils.logger import get_logger
 
@@ -99,6 +100,8 @@ class ScoreResult:
     is_repeat_offense: bool
     violation_id: int
     score_history_id: int
+    previous_risk_level: str
+    new_risk_level: str
 
 
 @dataclass
@@ -111,12 +114,14 @@ class RecoveryResult:
     intervals_completed: int
     previous_clean_seconds: int
     new_clean_seconds: int
+    previous_risk_level: str
+    new_risk_level: str
 
 
 class SafetyScoreEngine:
     def __init__(self, db: Database, config: Optional[dict] = None):
         self.db = db
-        self.config = config or load_config()
+        self.config = config if config is not None else load_config()
         self.penalties: dict = self.config.get("penalties", {})
         self.repeat_extra: int = self.penalties.get("repeated_offense_extra", 0)
 
@@ -137,6 +142,8 @@ class SafetyScoreEngine:
                 "No 'recovery' section found in config.yaml - defaulting to "
                 f"{interval_hours}h -> +{self.recovery_points_per_interval} points."
             )
+
+        self.risk_classifier = RiskClassifier(self.config)
 
     # ------------------------------------------------------------
     # Core scoring
@@ -168,6 +175,8 @@ class SafetyScoreEngine:
         total_penalty = base_penalty + repeat_extra_penalty
 
         new_score = apply_penalty(previous_score, total_penalty)
+        previous_risk_level = vehicle.risk_level
+        new_risk_level = self.risk_classifier.classify(new_score)
 
         try:
             violation_id = self.db.insert_violation(
@@ -181,15 +190,12 @@ class SafetyScoreEngine:
                 vehicle_id, previous_score, total_penalty, new_score, reason
             )
 
-            # Risk level is left as-is here; Phase 5's risk_classifier
-            # is what actually recomputes it. We still have to pass a
-            # value to satisfy update_vehicle_score's signature.
             # A violation also resets the CURRENT (not-yet-rewarded)
             # clean-driving counter back to 0 - any recovery points
             # already banked from earlier completed intervals stay,
             # since they're already baked into new_score's ancestry.
             self.db.update_vehicle_score(
-                vehicle_id, new_score, vehicle.risk_level, clean_seconds_accumulated=0
+                vehicle_id, new_score, new_risk_level, clean_seconds_accumulated=0
             )
 
         except DatabaseError as e:
@@ -201,6 +207,8 @@ class SafetyScoreEngine:
             f"(confidence={confidence:.2f}) - penalty={total_penalty} "
             f"({'repeat' if is_repeat else 'first'} offense) "
             f"score {previous_score} -> {new_score}"
+            + (f", risk {previous_risk_level} -> {new_risk_level}"
+               if previous_risk_level != new_risk_level else "")
         )
 
         return ScoreResult(
@@ -214,6 +222,8 @@ class SafetyScoreEngine:
             is_repeat_offense=is_repeat,
             violation_id=violation_id,
             score_history_id=score_history_id,
+            previous_risk_level=previous_risk_level,
+            new_risk_level=new_risk_level,
         )
 
     # ------------------------------------------------------------
@@ -246,6 +256,8 @@ class SafetyScoreEngine:
         points_awarded = intervals_completed * self.recovery_points_per_interval
 
         new_score = apply_recovery(previous_score, points_awarded)
+        previous_risk_level = vehicle.risk_level
+        new_risk_level = self.risk_classifier.classify(new_score)
         # If the score was capped at 100, the "extra" points are simply
         # not banked anywhere - once at 100 you can't bank recovery for
         # later use. The completed interval's time is still consumed
@@ -254,7 +266,7 @@ class SafetyScoreEngine:
 
         try:
             self.db.update_vehicle_score(
-                vehicle_id, new_score, vehicle.risk_level,
+                vehicle_id, new_score, new_risk_level,
                 clean_seconds_accumulated=new_clean_seconds,
             )
             if points_awarded > 0:
@@ -273,6 +285,8 @@ class SafetyScoreEngine:
                 f"Vehicle {vehicle_id}: +{seconds}s clean driving "
                 f"({intervals_completed} interval(s) completed) - "
                 f"score {previous_score} -> {new_score}"
+                + (f", risk {previous_risk_level} -> {new_risk_level}"
+                   if previous_risk_level != new_risk_level else "")
             )
         else:
             logger.debug(
@@ -290,6 +304,8 @@ class SafetyScoreEngine:
             intervals_completed=intervals_completed,
             previous_clean_seconds=previous_clean_seconds,
             new_clean_seconds=new_clean_seconds,
+            previous_risk_level=previous_risk_level,
+            new_risk_level=new_risk_level,
         )
 
     # ------------------------------------------------------------
