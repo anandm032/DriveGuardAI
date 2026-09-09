@@ -19,6 +19,7 @@ class Vehicle:
     vehicle_number: str
     current_score: int
     risk_level: str
+    clean_seconds_accumulated: int
     created_at: str
     updated_at: str
 
@@ -29,6 +30,7 @@ class Vehicle:
             vehicle_number=row["vehicle_number"],
             current_score=row["current_score"],
             risk_level=row["risk_level"],
+            clean_seconds_accumulated=row["clean_seconds_accumulated"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )

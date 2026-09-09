@@ -79,6 +79,33 @@ class Database:
             logger.error(f"Failed to initialize schema: {e}")
             raise DatabaseError(f"Failed to initialize database schema: {e}")
 
+        self._migrate_add_missing_columns()
+
+    def _migrate_add_missing_columns(self):
+        """CREATE TABLE IF NOT EXISTS never adds columns to a table
+        that already exists from an older run of this project. This
+        adds any columns introduced after the initial schema (like
+        clean_seconds_accumulated, added for the recovery feature) to
+        databases that were created before they existed, so old data
+        keeps working instead of breaking on the next query."""
+        try:
+            existing_columns = {
+                row["name"] for row in self._conn.execute("PRAGMA table_info(vehicles)")
+            }
+            if "clean_seconds_accumulated" not in existing_columns:
+                self._conn.execute(
+                    "ALTER TABLE vehicles ADD COLUMN "
+                    "clean_seconds_accumulated INTEGER NOT NULL DEFAULT 0"
+                )
+                self._conn.commit()
+                logger.info(
+                    "Migrated existing database: added clean_seconds_accumulated "
+                    "column to vehicles table"
+                )
+        except sqlite3.Error as e:
+            logger.error(f"Failed to migrate vehicles table: {e}")
+            raise DatabaseError(f"Failed to migrate database schema: {e}")
+
     def close(self):
         self._conn.close()
         logger.info("Database connection closed")
@@ -127,26 +154,51 @@ class Database:
         ).fetchone()
         return Vehicle.from_row(row) if row else None
 
-    def update_vehicle_score(self, vehicle_id: int, new_score: int, risk_level: str):
+    def update_vehicle_score(
+        self,
+        vehicle_id: int,
+        new_score: int,
+        risk_level: str,
+        clean_seconds_accumulated: Optional[int] = None,
+    ):
         """Persist a vehicle's new score and risk level. Called by the
-        scoring engine (Phase 4) after a violation is confirmed - this
-        method itself does not compute anything, only stores the
-        result."""
+        scoring engine (Phase 4) after a violation is confirmed, or
+        after a clean-driving recovery award - this method itself does
+        not compute anything, only stores the result.
+
+        clean_seconds_accumulated is optional: pass a value to update
+        it (e.g. reset to 0 after a violation, or set to the leftover
+        remainder after a recovery award); omit it to leave whatever
+        is currently stored untouched."""
         if new_score < 0:
             raise DatabaseError(f"new_score cannot be negative (got {new_score})")
+        if new_score > 100:
+            raise DatabaseError(f"new_score cannot exceed 100 (got {new_score})")
         if risk_level not in VALID_RISK_LEVELS:
             raise DatabaseError(
                 f"risk_level must be one of {VALID_RISK_LEVELS} (got '{risk_level}')"
             )
         if self.get_vehicle_by_id(vehicle_id) is None:
             raise DatabaseError(f"Cannot update score: vehicle_id {vehicle_id} does not exist")
+        if clean_seconds_accumulated is not None and clean_seconds_accumulated < 0:
+            raise DatabaseError(
+                f"clean_seconds_accumulated cannot be negative (got {clean_seconds_accumulated})"
+            )
 
         try:
-            self._conn.execute(
-                "UPDATE vehicles SET current_score = ?, risk_level = ?, "
-                "updated_at = datetime('now') WHERE vehicle_id = ?",
-                (new_score, risk_level, vehicle_id),
-            )
+            if clean_seconds_accumulated is not None:
+                self._conn.execute(
+                    "UPDATE vehicles SET current_score = ?, risk_level = ?, "
+                    "clean_seconds_accumulated = ?, updated_at = datetime('now') "
+                    "WHERE vehicle_id = ?",
+                    (new_score, risk_level, clean_seconds_accumulated, vehicle_id),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE vehicles SET current_score = ?, risk_level = ?, "
+                    "updated_at = datetime('now') WHERE vehicle_id = ?",
+                    (new_score, risk_level, vehicle_id),
+                )
             self._conn.commit()
             logger.info(
                 f"Vehicle {vehicle_id} score updated to {new_score} ({risk_level})"

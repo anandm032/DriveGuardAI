@@ -33,6 +33,18 @@ penalties:
   repeated_offense_extra: 5       # extra penalty added on top of the base penalty for repeat offenses
 
 # --------------------------------------------------
+# Safety score recovery (clean-driving reward)
+# --------------------------------------------------
+# Rewards sustained violation-free monitored driving, the same way
+# violations penalize unsafe behavior - conceptually similar to how a
+# credit/CIBIL score slowly recovers with consistent good behavior.
+# Recovery is intentionally slow: a 15-point violation takes several
+# multiples of the interval below to fully recover.
+recovery:
+  interval_hours: 6                # every this many MONITORED (not wall-clock) hours of clean driving...
+  points_awarded_per_interval: 2   # ...adds this many points back to the score
+
+# --------------------------------------------------
 # Risk classification thresholds (PROJECT-DEFINED POLICY, not an official insurance standard)
 # --------------------------------------------------
 risk_thresholds:

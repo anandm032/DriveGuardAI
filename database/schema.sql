@@ -17,9 +17,17 @@ CREATE TABLE IF NOT EXISTS vehicles (
     vehicle_number  TEXT NOT NULL UNIQUE,          -- e.g. "KL-XX-1234", entered by the user
     current_score   INTEGER NOT NULL DEFAULT 100,
     risk_level      TEXT NOT NULL DEFAULT 'LOW',   -- 'LOW' | 'MEDIUM' | 'HIGH'
+    -- Seconds of monitored clean (violation-free) driving accumulated
+    -- since the last recovery award or the last violation, whichever
+    -- was more recent. Resets to 0 on a confirmed violation, and
+    -- resets to a remainder (not necessarily 0) whenever it crosses
+    -- a full recovery interval and a +N award is granted. Persists
+    -- across sessions/app restarts just like current_score.
+    clean_seconds_accumulated INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
     CHECK (current_score >= 0),
+    CHECK (clean_seconds_accumulated >= 0),
     CHECK (risk_level IN ('LOW', 'MEDIUM', 'HIGH'))
 );
 
