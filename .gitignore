@@ -1,0 +1,41 @@
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Model weights (large binary files - don't commit to git)
+models/*.pt
+models/*.onnx
+
+# Datasets (usually large; keep only README/pointers in git)
+datasets/raw/*
+datasets/processed/*
+!datasets/raw/.gitkeep
+!datasets/processed/.gitkeep
+
+# Database
+data/*.db
+data/*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Reports (generated output)
+reports/generated/*
+!reports/generated/.gitkeep
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Streamlit
+.streamlit/

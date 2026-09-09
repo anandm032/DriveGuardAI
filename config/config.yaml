@@ -1,0 +1,63 @@
+# ==================================================
+# DriveGuard AI - Central Configuration
+# ==================================================
+# Every tunable value used across the project lives here.
+# Nothing in the application code should hard-code these numbers.
+# Modules load this file at startup (see utils/helpers.py, added in Phase 2).
+
+# --------------------------------------------------
+# Model settings
+# --------------------------------------------------
+model:
+  path: "models/best.pt"          # path to trained YOLO weights (added in Phase 6)
+  inference_size: 640             # image size fed to YOLO (smaller = faster, less accurate)
+  device: "cpu"                   # "cpu" or "cuda" — set to "cuda" only if a GPU + CUDA build of torch is installed
+
+# --------------------------------------------------
+# Detection / temporal confirmation settings
+# --------------------------------------------------
+detection:
+  confidence_threshold: 0.70      # minimum YOLO confidence to even consider a detection
+  min_consecutive_frames: 10      # number of consecutive frames the same activity must appear in
+  violation_cooldown_seconds: 15  # minimum time between two recorded violations of the same activity
+  frame_skip: 0                   # process every frame (0) or skip N frames between detections for speed
+
+# --------------------------------------------------
+# Safety score penalties (points deducted per confirmed violation)
+# --------------------------------------------------
+penalties:
+  mobile_phone_usage: 15
+  smoking: 10
+  drinking: 10
+  distraction: 8
+  repeated_offense_extra: 5       # extra penalty added on top of the base penalty for repeat offenses
+
+# --------------------------------------------------
+# Risk classification thresholds (PROJECT-DEFINED POLICY, not an official insurance standard)
+# --------------------------------------------------
+risk_thresholds:
+  low_risk_min: 80                # score >= 80  -> LOW risk
+  medium_risk_min: 50              # 50 <= score < 80 -> MEDIUM risk
+  high_risk_min: 0                 # 0 <= score < 50  -> HIGH risk
+
+# --------------------------------------------------
+# Database
+# --------------------------------------------------
+database:
+  path: "data/driveguard.db"
+
+# --------------------------------------------------
+# Application
+# --------------------------------------------------
+app:
+  name: "DriveGuard AI"
+  log_file: "logs/driveguard.log"
+  log_level: "INFO"
+
+# --------------------------------------------------
+# Optional MQ-2 hardware module (Phase 15 — not required for the core system)
+# --------------------------------------------------
+mq2_sensor:
+  enabled: false
+  serial_port: "COM3"
+  baud_rate: 9600

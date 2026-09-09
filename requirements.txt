@@ -1,0 +1,32 @@
+# DriveGuard AI - Core Dependencies
+# Tested with Python 3.10 / 3.11 on Windows 10/11
+
+# Computer Vision
+opencv-python==4.10.0.84
+
+# Deep Learning / YOLO
+ultralytics==8.3.28
+torch==2.4.1
+torchvision==0.19.1
+
+# Dashboard
+streamlit==1.39.0
+
+# Data handling
+numpy==1.26.4
+pandas==2.2.3
+
+# Charts (used by the dashboard in later phases)
+plotly==5.24.1
+
+# Config file parsing
+PyYAML==6.0.2
+
+# Report generation (PDF) - added in Phase 12, listed now so env is ready
+reportlab==4.2.5
+
+# Testing
+pytest==8.3.3
+
+# General utilities
+python-dateutil==2.9.0.post0
