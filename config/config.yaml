@@ -9,9 +9,36 @@
 # Model settings
 # --------------------------------------------------
 model:
-  path: "models/best.pt"          # path to trained YOLO weights (added in Phase 6)
+  path: "models/best.pt"          # path to trained YOLO weights (produced by training/train.py)
   inference_size: 640             # image size fed to YOLO (smaller = faster, less accurate)
   device: "cpu"                   # "cpu" or "cuda" — set to "cuda" only if a GPU + CUDA build of torch is installed
+  # Maps a trained model's raw class names (lowercased) to this
+  # project's internal activity vocabulary, used everywhere else in
+  # the app (scoring, database, dashboard). Fill this in to match
+  # whichever dataset you actually train on - see datasets/README.md.
+  # Classes with no entry here are detected but silently ignored
+  # (logged once) rather than scored - e.g. "safedriving" and
+  # "eating" are intentionally left unmapped below: safe driving
+  # isn't a violation, and eating has no penalty defined yet in the
+  # `penalties` section.
+  #
+  # Includes BOTH the common raw names used by third-party datasets
+  # (e.g. "mobile use", "distracted") AND this project's own canonical
+  # names as identity entries (e.g. "distraction" -> "distraction").
+  # This matters because training/data.yaml's placeholder class list
+  # already uses the canonical names directly - if you train on that
+  # exact list unchanged, the raw model output IS the canonical name,
+  # and without an identity entry here it would be silently dropped
+  # as "unmapped" instead of passing through.
+  class_map:
+    "mobile use": "mobile_phone_usage"
+    "mobile_phone_usage": "mobile_phone_usage"
+    "smoking": "smoking"
+    "drinking": "drinking"
+    "distracted": "distraction"
+    "distraction": "distraction"
+    "drowsy": "drowsiness"
+    "drowsiness": "drowsiness"
 
 # --------------------------------------------------
 # Detection / temporal confirmation settings

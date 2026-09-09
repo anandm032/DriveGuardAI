@@ -1,0 +1,44 @@
+# ==================================================
+# DriveGuard AI - YOLO Dataset Definition
+# ==================================================
+# This is a TEMPLATE. It does not point at real data yet - you need
+# to download and organize a dataset first (see datasets/README.md
+# for the specific dataset this project recommends and why), then
+# update the paths below to match.
+#
+# Expected folder layout once you've prepared data (standard YOLO
+# format, e.g. what a Roboflow "YOLOv8" export gives you directly):
+#
+#   datasets/processed/
+#     train/
+#       images/
+#       labels/
+#     valid/
+#       images/
+#       labels/
+#     test/            (optional)
+#       images/
+#       labels/
+#
+# path/train/valid below are relative to this file's location
+# (training/), matching Ultralytics' convention.
+
+path: ../datasets/processed   # dataset root
+train: train/images
+val: valid/images
+test: test/images             # optional - remove this line if you have no test split
+
+# Class list - MUST be in the same order as the class IDs used in
+# your label .txt files (id 0 = first entry below, id 1 = second,
+# etc). If you use a dataset with different class names, either
+# rename its labels to match this list, or change this list to match
+# the dataset - just make sure config.yaml's model.class_map maps
+# whatever ends up here to this project's activity vocabulary.
+names:
+  0: mobile_phone_usage
+  1: smoking
+  2: drinking
+  3: distraction
+  4: drowsy
+
+nc: 5   # number of classes - must match the length of `names` above
