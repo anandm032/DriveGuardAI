@@ -39,6 +39,9 @@ model:
     "distraction": "distraction"
     "drowsy": "drowsiness"
     "drowsiness": "drowsiness"
+    "safedriving": "safe_driving"
+    "safe_driving": "safe_driving"
+    "eating": "eating"
 
 # --------------------------------------------------
 # Detection / temporal confirmation settings

@@ -76,8 +76,8 @@ def main():
         ("distraction", "distraction"),                  # identity entry
         ("Drowsy", "drowsiness"),
         ("drowsiness", "drowsiness"),                     # identity entry
-        ("SafeDriving", None),                            # intentionally unmapped
-        ("Eating", None),                                 # intentionally unmapped (no penalty defined yet)
+        ("SafeDriving", "safe_driving"),                            # intentionally unmapped
+        ("Eating", "eating"),                                 # intentionally unmapped (no penalty defined yet)
         ("SomeRandomClass", None),                        # genuinely unknown
     ]
 
