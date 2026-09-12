@@ -191,30 +191,39 @@ class MonitoringSession:
                 confirmed = self.tracker.update(detections)
 
                 for violation in confirmed:
-                    score_result = self.engine.record_violation(
-                        self.vehicle_id,
-                        violation.activity,
-                        violation.confidence,
-                        session_id=self.session_id,
-                    )
-                    confirmed_records.append(ConfirmedViolationRecord(
-                        activity=violation.activity,
-                        confidence=violation.confidence,
-                        frame_number=frames_processed,
-                        new_score=score_result.new_score,
-                        new_risk_level=score_result.new_risk_level,
-                    ))
-                    # record_violation() already reset the vehicle's
-                    # clean-time counter in the DB (it's part of what
-                    # confirming a violation means). Reset our own
-                    # wall-clock bookkeeping to match RIGHT NOW, not
-                    # just at the next periodic report - otherwise the
-                    # next periodic/leftover report would measure
-                    # elapsed time starting from BEFORE this violation
-                    # happened, and incorrectly award clean-time credit
-                    # for a window that wasn't actually clean.
-                    last_recovery_report_time = self._clock()
+                    if violation.activity in self.config.get('penalties', {}):
+                        score_result = self.engine.record_violation(
+                            self.vehicle_id,
+                            violation.activity,
+                            violation.confidence,
+                            session_id=self.session_id,
+                        )
 
+                        confirmed_records.append(ConfirmedViolationRecord(
+                            activity=violation.activity,
+                            confidence=violation.confidence,
+                            frame_number=frames_processed,
+                            new_score=score_result.new_score,
+                            new_risk_level=score_result.new_risk_level,
+                        ))
+
+                        # record_violation() already reset the vehicle's
+                        # clean-time counter in the DB. Reset our own
+                        # wall-clock bookkeeping to match RIGHT NOW.
+                        last_recovery_report_time = self._clock()
+
+                    else:
+                        # Activities such as safe_driving may be confirmed
+                        # by the temporal tracker but must not affect score.
+                        current_vehicle = self.db.get_vehicle_by_id(self.vehicle_id)
+
+                        confirmed_records.append(ConfirmedViolationRecord(
+                            activity=violation.activity,
+                            confidence=violation.confidence,
+                            frame_number=frames_processed,
+                            new_score=current_vehicle.current_score,
+                            new_risk_level=current_vehicle.risk_level,
+                        ))
                 now = self._clock()
                 elapsed_since_report = now - last_recovery_report_time
                 if elapsed_since_report >= self.recovery_report_interval_seconds:
@@ -289,3 +298,4 @@ class MonitoringSession:
             f"stopped_reason={result.stopped_reason}"
         )
         return result
+

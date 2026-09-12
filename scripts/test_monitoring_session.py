@@ -146,6 +146,10 @@ def drinking_detection(confidence=0.9):
     return Detection(activity="drinking", confidence=confidence, bbox=(0.0, 0.0, 10.0, 10.0),
                       raw_class_name="Drinking")
 
+def safe_driving_detection(confidence=0.9):
+    return Detection(activity="safe_driving", confidence=confidence, bbox=(0.0, 0.0, 10.0, 10.0),
+                     raw_class_name="SafeDriving")
+
 
 def make_real_stack(db_path, min_consecutive_frames=3, cooldown_seconds=5.0, clock=None):
     """Builds a real Database + SafetyScoreEngine + ViolationTracker
@@ -666,6 +670,78 @@ def test_multiple_violations_each_reset_the_window():
               f"and 11.0 would mean only the 1st reset was honored)")
         db.close()
 
+# ------------------------------------------------------------
+# 15. SafeDriving is confirmed but must NOT be scored
+# ------------------------------------------------------------
+def test_safe_driving_is_ignored_by_scoring():
+    print("Test 15: safe_driving can be confirmed but is ignored by scoring")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        db_path = os.path.join(tmp_dir, "test.db")
+        video_path = os.path.join(tmp_dir, "clip.mp4")
+        make_test_video(video_path, num_frames=5)
+
+        # Three consecutive safe-driving detections confirm the activity.
+        # SafeDriving is intentionally NOT a violation and has no penalty.
+        db, vehicle, tracker, engine, clock = make_real_stack(
+            db_path,
+            min_consecutive_frames=3,
+        )
+
+        starting_score = vehicle.current_score
+
+        program = (
+            [[safe_driving_detection()]]
+            + [[safe_driving_detection()]]
+            + [[safe_driving_detection()]]
+            + [[] for _ in range(2)]
+        )
+
+        detector = StubDetector(program)
+
+        session = MonitoringSession(
+            vehicle_id=vehicle.vehicle_id,
+            source=video_path,
+            db=db,
+            detector=detector,
+            tracker=tracker,
+            engine=engine,
+            clock=clock,
+        )
+
+        result = session.run()
+
+        # The tracker should genuinely confirm safe_driving.
+        check(
+            len(result.confirmed_violations) == 1,
+            "safe_driving was confirmed by the temporal tracker",
+        )
+
+        check(
+            result.confirmed_violations[0].activity == "safe_driving",
+            "confirmed activity is safe_driving",
+        )
+
+        # But safe_driving must never reach the scoring engine.
+        check(
+            len(engine.record_violation_calls) == 0,
+            "safe_driving was NOT sent to SafetyScoreEngine.record_violation()",
+        )
+
+        # The real DB score must remain unchanged.
+        reloaded = db.get_vehicle_by_id(vehicle.vehicle_id)
+
+        check(
+            reloaded.current_score == starting_score,
+            f"safe_driving did not change the vehicle score ({starting_score} -> {reloaded.current_score})",
+        )
+
+        check(
+            result.final_score == starting_score,
+            "MonitoringResult.final_score remains unchanged",
+        )
+
+        db.close()
+
 
 def main():
     print("=" * 60)
@@ -688,6 +764,7 @@ def main():
         test_leftover_after_periodic_reports,
         test_violation_resets_the_recovery_window,
         test_multiple_violations_each_reset_the_window,
+        test_safe_driving_is_ignored_by_scoring,
     ]
 
     for test_fn in tests:
